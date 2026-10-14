@@ -1,4 +1,4 @@
-"""RenewCast historical forecasting and model-reliability dashboard."""
+"""RenewCast dashboard for historical solar generation forecasts."""
 
 import sys
 from pathlib import Path
@@ -16,7 +16,7 @@ from renewcast.evaluation import score_forecast
 from renewcast.pipeline import load_artifacts, verify_data_integrity
 
 st.set_page_config(
-    page_title="RenewCast | Solar Forecast Intelligence",
+    page_title="RenewCast | Solar Generation Forecasts",
     page_icon="☀️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -50,7 +50,7 @@ st.markdown(
 )
 
 
-@st.cache_data(show_spinner="Reading evaluated observations…")
+@st.cache_data(show_spinner="Loading data…")
 def read_outputs(data_path: str, metrics_path: str, predictions_path: str,
                  signatures: tuple) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Cache CSV parsing; modified file timestamps invalidate the cache."""
@@ -142,7 +142,7 @@ missing = [str(path.relative_to(Path(__file__).resolve().parent))
            for path in required_files if not path.is_file()]
 if missing:
     st.title("☀️ RenewCast")
-    st.info("The dashboard needs trained and evaluated local artifacts.")
+    st.info("Forecast results are not available yet. Run the setup commands below first.")
     st.code("python scripts/download_data.py\npython scripts/train.py\n"
             "python scripts/evaluate.py\nstreamlit run app.py", language="bash")
     st.caption("Missing files: " + ", ".join(missing))
@@ -164,7 +164,7 @@ try:
     if selected_model not in set(metrics["model"]):
         raise ValueError("Selected model missing from metrics.csv.")
 except (OSError, ValueError, KeyError, TypeError, ImportError) as exc:
-    st.error(f"Unable to read reliable pipeline artifacts: {exc}")
+    st.error(f"Could not load forecast results: {exc}")
     st.info("Run `python scripts/train.py` and `python scripts/evaluate.py` again.")
     st.stop()
 
@@ -175,49 +175,44 @@ threshold = metadata["drift_reference_mae_mw"] * metadata["drift_multiplier"]
 all_episodes = warning_episodes(predictions)
 
 st.sidebar.markdown("## ☀️ RenewCast")
-st.sidebar.caption("Historical German solar generation · UTC")
+st.sidebar.caption("German solar generation · UTC")
 st.sidebar.divider()
 st.sidebar.markdown("**Forecast horizon**")
-st.sidebar.write("One hour ahead, with actual generation known through t−1.")
-st.sidebar.markdown("**Model selected on validation**")
-st.sidebar.code(selected_model)
-st.sidebar.markdown("**Test dates**")
+st.sidebar.write("One hour ahead")
+st.sidebar.markdown("**Test period**")
 st.sidebar.caption(
     f"{predictions.index.min():%d %b %Y} — {predictions.index.max():%d %b %Y}"
 )
 st.sidebar.divider()
-st.sidebar.caption("OPSD historical observations · Not a live forecast")
+st.sidebar.caption("Historical data · Not a live forecast")
 
-st.markdown('<div class="eyebrow">Renewable energy · Machine learning · Reliability</div>',
-            unsafe_allow_html=True)
-st.title("Solar Power Forecast Intelligence")
+st.title("German Solar Generation Forecasts")
 st.markdown(
-    '<div class="intro">Explore one-hour-ahead German solar generation forecasts, '
-    'model performance on unseen data, and historical reliability signals.</div>',
+    '<div class="intro">Forecast solar generation one hour ahead, compare predictions with actual output, '
+    'and track forecast errors over time.</div>',
     unsafe_allow_html=True,
 )
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Test MAE", f"{selected['mae_mw']:,.1f} MW")
-col2.metric("MAE vs. baseline", f"{improvement:.1f}% lower")
-col3.metric("Unseen test hours", f"{len(predictions):,}")
-col4.metric("Flagged test hours", f"{int(predictions['drift_warning'].sum()):,}")
+col2.metric("MAE vs. previous day", f"{improvement:.1f}% lower" if improvement >= 0 else f"{abs(improvement):.1f}% higher")
+col3.metric("Test hours", f"{len(predictions):,}")
+col4.metric("Hours with high error", f"{int(predictions['drift_warning'].sum()):,}")
 
 st.caption(
-    "All figures above are calculated from saved pipeline outputs. "
-    "Flags are hours meeting a historical rolling-error rule, not independent incidents."
+    "Metrics are calculated on the test period. Error flags mark hours that meet the rolling-error rule."
 )
 
 overview, explorer, evaluation, drift_tab = st.tabs([
-    "Overview", "Forecast explorer", "Model evaluation", "Drift monitoring"
+    "Overview", "Forecasts", "Model comparison", "Error monitoring"
 ])
 
 with overview:
-    st.subheader("Historical solar generation")
+    st.subheader("Solar generation history")
     history_days = st.slider("Latest historical days to display", 7, 120, 30,
                              key="history_days")
     line_plot(history.tail(history_days * 24), {"power_mw": "Observed generation"})
-    st.subheader("Selected model · Recent unseen test observations")
+    st.subheader("Recent forecasts")
     recent_days = st.slider("Latest test days to display", 3, 45, 14,
                             key="overview_days")
     recent = predictions.tail(recent_days * 24)
@@ -226,25 +221,22 @@ with overview:
         "selected_prediction_mw": "Forecast",
     })
     st.info(
-        "**Forecast protocol:** At the end of UTC hour t−1, once the preceding "
-        "hour's actual generation is known, predict hour t. This is a historical "
-        "one-hour-ahead backtest—not a day-ahead forecast."
+        "Forecasts use the previous hour’s observed generation to predict the next hour. This is a historical backtest, not a day-ahead forecast."
     )
-    st.caption(f"Holdout: {metadata['test_start']} through {metadata['test_end']}. "
-               "Selection used validation MAE, never test labels.")
+    st.caption(f"Test period: {metadata['test_start']} through {metadata['test_end']}.")
 
 with explorer:
-    st.subheader("Forecast explorer")
-    st.markdown('<p class="section-note">Inspect specific days and compare the model '
-                'with a simple previous-day baseline.</p>', unsafe_allow_html=True)
+    st.subheader("Forecasts")
+    st.markdown('<p class="section-note">Choose a date range to compare forecasts with actual generation.'
+                '</p>', unsafe_allow_html=True)
     earliest, latest = predictions.index.min().date(), predictions.index.max().date()
     default_start = max(earliest, latest - pd.Timedelta(days=13))
-    picked = st.date_input("Choose a test-period date range (UTC)",
+    picked = st.date_input("Choose dates (UTC)",
                            value=(default_start, latest),
                            min_value=earliest, max_value=latest,
                            key="forecast_dates")
     if not isinstance(picked, tuple) or len(picked) != 2:
-        st.info("Select a start and end date to explore the test period.")
+        st.info("Select a start and end date.")
     else:
         start, end = picked
         if start > end:
@@ -252,11 +244,11 @@ with explorer:
         else:
             subset = slice_dates(predictions, start, end)
             if subset.empty:
-                st.info("No evaluated observations in this range.")
+                st.info("No observations available for these dates.")
             else:
                 options = {
                     "Gradient boosting": "gradient_boosting_mw",
-                    "Seasonal naive (24h lag)": "seasonal_naive_24h_mw",
+                    "Previous day (24-hour lag)": "seasonal_naive_24h_mw",
                 }
                 chosen = st.multiselect("Display forecasts", list(options),
                                         default=list(options))
@@ -271,13 +263,13 @@ with explorer:
                     if not daytime.empty else float("nan")
                 )
                 first, second, third = st.columns(3)
-                first.metric("Selected-range MAE", f"{local_mae:,.1f} MW")
-                second.metric("Generation-positive MAE",
+                first.metric("MAE for selected dates", f"{local_mae:,.1f} MW")
+                second.metric("MAE when generation is above zero",
                               f"{daytime_mae:,.1f} MW" if pd.notna(daytime_mae) else "N/A")
-                third.metric("Hours inspected", f"{len(subset):,}")
+                third.metric("Hours shown", f"{len(subset):,}")
                 st.caption("Generation-positive hours use actual > 0 MW; this is a "
                            "post-hoc diagnostic, not a feature available at forecast time.")
-                with st.expander("Largest errors in this date range"):
+                with st.expander("Largest forecast errors"):
                     worst = subset.assign(
                         error_mw=(subset["actual_mw"] - subset[active_column]).abs()
                     ).nlargest(10, "error_mw")
@@ -287,10 +279,10 @@ with explorer:
                 export_csv(subset, "renewcast_selected_forecasts.csv")
 
 with evaluation:
-    st.subheader("Held-out model comparison")
+    st.subheader("Model comparison on the test period")
     comparison = metrics.copy()
     comparison["model"] = comparison["model"].replace({
-        "seasonal_naive_24h": "Seasonal naive · 24h lag",
+        "seasonal_naive_24h": "Previous day (24-hour lag)",
         "gradient_boosting": "Gradient boosting",
     })
     st.dataframe(comparison.rename(columns={
@@ -309,7 +301,7 @@ with evaluation:
     st.bar_chart(chart, y_label="Percent" if metric_choice == "nmae_pct" else "MW")
     st.caption("nMAE = 100 × test MAE / mean observed training-period generation. "
                "It is a normalized error, not a prediction accuracy percentage.")
-    st.subheader("Residual distribution · Selected model")
+    st.subheader("Forecast error distribution")
     residuals = predictions["actual_mw"] - predictions["selected_prediction_mw"]
     fig, ax = plt.subplots(figsize=(10, 3.3))
     fig.patch.set_facecolor("#111c2c")
@@ -324,36 +316,32 @@ with evaluation:
     fig.tight_layout()
     st.pyplot(fig, use_container_width=True)
     plt.close(fig)
-    st.markdown("**How to interpret the comparison**")
+    st.markdown("**About the models**")
     st.write(
-        "The seasonal-naive baseline predicts generation from the same hour 24 hours "
-        "earlier. Gradient boosting uses prior generation, trailing rolling statistics "
-        "and calendar features. Chronological train, validation, and test periods prevent "
-        "randomly mixed future labels from entering model fitting."
+        "The previous-day baseline uses generation from the same hour on the previous day. Gradient boosting uses recent generation and calendar information. Data is split by time, so later observations are not used to train the model."
     )
     st.caption(f"Training samples: {metadata['train_samples']:,} · "
                f"Validation: {metadata['validation_samples']:,} · "
                f"Test: {metadata['test_samples']:,}")
 
 with drift_tab:
-    st.subheader("Rolling-error reliability monitor")
+    st.subheader("Forecast error over time")
     st.write(
         f"**Rule:** a {metadata['drift_window_hours']}-hour rolling MAE must exceed "
         f"{metadata['drift_multiplier']}× validation MAE "
         f"(**{threshold:,.1f} MW**) for "
         f"{metadata['drift_consecutive_hours']} consecutive hours. "
-        "Missing-hour windows cannot trigger warnings. This monitors performance "
-        "deterioration, not feature-distribution drift."
+        "A missing hour breaks the rolling window. This rule flags rising forecast errors; it does not measure changes in input data."
     )
     flagged_count = int(predictions["drift_warning"].sum())
     a, b, c = st.columns(3)
-    a.metric("Flagged timestamps", f"{flagged_count:,}")
-    b.metric("Warning episodes", f"{len(all_episodes):,}")
+    a.metric("Hours flagged", f"{flagged_count:,}")
+    b.metric("Periods flagged", f"{len(all_episodes):,}")
     c.metric("Share of test hours flagged", f"{flagged_count / len(predictions):.1%}")
     if flagged_count:
-        st.warning("The historical error rule was triggered in the holdout period.")
+        st.warning("Forecast errors crossed the alert threshold during this test period.")
     else:
-        st.success("No historical timestamps triggered the configured rule.")
+        st.success("Forecast errors did not cross the alert threshold during this test period.")
     graph = predictions[["rolling_mae_mw"]].copy()
     graph["Alert threshold"] = threshold
     line_plot(graph, {"rolling_mae_mw": "24h rolling MAE",
@@ -361,9 +349,9 @@ with drift_tab:
     st.caption("An episode groups contiguous warning timestamps; the first warning "
                "occurs only after the required consecutive breaches. Episodes are "
                "descriptive summaries, not independent statistical change points.")
-    st.subheader("Historical warning episodes")
+    st.subheader("Periods with high forecast error")
     if all_episodes.empty:
-        st.info("There are no warning episodes to display.")
+        st.info("No periods were flagged.")
     else:
         shown = st.slider("Episodes to display", 5,
                           max(5, min(100, len(all_episodes))),
@@ -375,9 +363,5 @@ with drift_tab:
 
 st.divider()
 st.caption(
-    "**Scope and limitations:** OPSD historical German solar generation, ending in 2020. "
-    "No current live forecast or weather forecast inputs. Predictions assume hour t−1's "
-    "actual generation is already available. Forecasts update with observed values "
-    "each hour; the model is not evaluated as a 24-hour-ahead forecaster. "
-    "A drift warning is a heuristic about forecast errors, not proof of concept drift."
+    "Historical German solar data ending in 2020. This app does not provide live or weather-based forecasts. Predictions are one hour ahead, using the previous hour’s observed generation. Error alerts indicate elevated forecast error, not its cause."
 )
