@@ -1,4 +1,5 @@
 # RenewCast ☀️
+<img width="1095" height="670" alt="Screenshot 2026-10-14 at 2 38 34 PM" src="https://github.com/user-attachments/assets/0bc890ab-2ebd-4d47-981b-e7e412933c31" />
 
 **Solar power forecasting with model evaluation and performance monitoring.**
 
