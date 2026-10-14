@@ -1,5 +1,6 @@
 # ☀️ RenewCast 
 **Solar power forecasting with model evaluation and performance monitoring.**
+<br>
 <img width="1197" height="702" alt="Screenshot 2026-10-14 at 4 41 52 PM" src="https://github.com/user-attachments/assets/f8665afd-1e29-488b-bdaa-41d1634ab361" />
 
 RenewCast is an open-source tool for forecasting hourly German solar power generation one hour ahead. It compares a machine learning model against a simple historical baseline and tracks how prediction errors change over time.
