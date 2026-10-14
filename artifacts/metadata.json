@@ -1,0 +1,46 @@
+{
+  "data_sha256": "9131173d948bb4c0a35f6df9ac014eec822d5e41c098fb795b039fb8233cc2d6",
+  "data_path": "/Users/main/Downloads/renewcast/data/processed/germany_solar_hourly.csv",
+  "default_source_url": "https://data.open-power-system-data.org/time_series/2020-10-06/time_series_60min_singleindex.csv",
+  "forecast_horizon_hours": 1,
+  "forecast_origin": "End of hour t-1, once the actual for t-1 is available",
+  "feature_columns": [
+    "lag_1h",
+    "lag_24h",
+    "lag_168h",
+    "mean_previous_24h",
+    "mean_previous_168h",
+    "std_previous_24h",
+    "hour_sin",
+    "hour_cos",
+    "year_day_sin",
+    "year_day_cos",
+    "day_of_week"
+  ],
+  "train_samples": 34619,
+  "validation_samples": 7419,
+  "test_samples": 7419,
+  "train_end": "2019-01-21T17:00:00+00:00",
+  "validation_start": "2019-01-21T18:00:00+00:00",
+  "validation_end": "2019-11-26T20:00:00+00:00",
+  "test_start": "2019-11-26T21:00:00+00:00",
+  "test_end": "2020-09-30T23:00:00+00:00",
+  "training_mean_mw": 4171.052341199919,
+  "selected_model": "gradient_boosting",
+  "validation_scores": {
+    "seasonal_naive_24h": {
+      "mae_mw": 1268.2978838118345,
+      "rmse_mw": 2657.3793433108663,
+      "nmae_pct": 30.407143810786447
+    },
+    "gradient_boosting": {
+      "mae_mw": 302.6177694372804,
+      "rmse_mw": 554.7998330609436,
+      "nmae_pct": 7.255189930084262
+    }
+  },
+  "drift_window_hours": 24,
+  "drift_multiplier": 1.5,
+  "drift_consecutive_hours": 3,
+  "drift_reference_mae_mw": 302.6177694372804
+}
