@@ -116,7 +116,3 @@ Python · pandas · NumPy · scikit-learn · Streamlit · Matplotlib · pytest
 ## Contributing
 
 Contributions, bug reports, and suggestions are welcome. Please open an issue to discuss substantial changes before submitting a pull request.
-
-## License
-
-The project's software license should be specified in the repository's `LICENSE` file. The license for the software does not automatically determine the redistribution rights for the underlying energy data.
