@@ -1,4 +1,4 @@
-# ☀️ RenewCast 
+# RenewCast 
 **Solar power forecasting with model evaluation and performance monitoring.**
 <br>
 <br>
